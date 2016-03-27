@@ -15,7 +15,6 @@ object SparkHBaseGetSerializableTest {
     val sparkConf = new SparkConf().setAppName("SparkHBaseGetSerializableTest")
     val sc = new SparkContext(sparkConf)
     val dpi = sc.textFile("/user/zhaogj/input/dpiB.txt")
-    //println("dpi count:" + dpi.count)
     //单线程的访问方式
     //    val conf = HBaseConfiguration.create()
     //    conf.set("hbase.zookeeper.property.clientPort", "2181")
