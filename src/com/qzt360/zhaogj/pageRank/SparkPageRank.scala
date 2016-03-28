@@ -16,6 +16,7 @@ object SparkPageRank {
       System.exit(1)
     }
 
+    
     showWarning()
 
     val sparkConf = new SparkConf().setAppName("PageRank")
