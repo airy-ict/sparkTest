@@ -28,6 +28,12 @@ object FlatMapTest {
         for (e <- x) yield (e, 1)
       }
     }
+    //
+    val worsNewRDD = fileRDD.map(_.split("\\s+")).flatMap(x => List(x, 1))
+    worsNewRDD.collect
+    //
+    val wordsRDD2 = fileRDD.flatMap(_.split("\\s+")).map(x => (x, 1))
+    wordsRDD2.collect
     /**
      *
      * yield的用法：
@@ -43,6 +49,12 @@ object FlatMapTest {
     wordsRDD.collect()
     wordsRDD.reduceByKey(_ + _).collect()
 
+    val arr = sc.parallelize(Array(("A", 1), ("B", 2), ("C", 3)))
+    val tmp = arr.flatMap(x => (x._1 + x._2))
+    tmp.collect
+    sc.parallelize(1 to 10, 5).flatMap(1 to _).collect
+    sc.parallelize(List(1, 2, 3), 2).flatMap(x => List(x, x, "zz")).collect
+    sc.parallelize(1 to 10, 3).flatMap(List.fill(scala.util.Random.nextInt(10))(_)).collect
     sc.stop()
   }
 }
