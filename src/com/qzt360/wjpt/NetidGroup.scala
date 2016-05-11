@@ -74,7 +74,7 @@ object NetidGroup {
                 if (someQQ.substring(5, someQQ.length() - 1).equals(parts(10))) {
                   if (parts(4).length() <= 10 && parts(0).length() <= 10) {
                     if (parts(4).startsWith("1")) {
-                      if (!errIms.contains(parts(10))) {
+                      if (!errIms.contains(parts(7) + "\t" + parts(10))) {
                         result = true
                       }
                     }
@@ -169,7 +169,7 @@ object NetidGroup {
           if (actionType == 0 || actionType == 2) {
             if (parts(4).length() <= 10 && parts(0).length() <= 10) {
               if (parts(4).startsWith("1")) {
-                if (!errEmails.contains(parts(10))) {
+                if (!errEmails.contains("9\t" + parts(10))) {
                   result = true
                 }
               }
