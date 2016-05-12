@@ -6,7 +6,7 @@ import scala.collection.mutable.Map
 
 object NetidGroup {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("NetidGroup")
+    val conf = new SparkConf().setAppName("NetidGroupZhaogj")
     val sc = new SparkContext(conf)
     //im分析
     //滤掉明显不合格的数据
@@ -82,6 +82,7 @@ object NetidGroup {
     }
     val errIm = imOnce union imMany
     errIm.saveAsTextFile("/user/zhaogj/output/errIm")
+    
     val errImMap = errIm.collectAsMap
 
     val keyIm = im.filter { x =>
@@ -246,8 +247,9 @@ object NetidGroup {
 
     //计算最大连通子图，看看结果是什么鸟样
     //给每个身份一个唯一编号(Long)
+    //每个partition中编号各自编写，要注意
     var idNum = 0L
-    val netidNumMap = netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
+    val netidNumMap = netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
       {
         for (e <- x) yield e
       }
@@ -257,7 +259,7 @@ object NetidGroup {
         (x, idNum)
       }
     }.collectAsMap
-    netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
+    netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
       {
         for (e <- x) yield e
       }
@@ -267,7 +269,7 @@ object NetidGroup {
         x + "," + idNum
       }
     }.saveAsTextFile("/user/zhaogj/output/netidNum")
-    netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
+    netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
       {
         for (i <- 1 until x.length - 1) yield (netidNumMap(x(0)) + "\t" + netidNumMap(x(i)))
       }
@@ -282,5 +284,6 @@ object NetidGroup {
     val ccByUsername = users.join(cc).map {
       case (id, (username, cc)) => (username, cc)
     }.map { case (username, userid) => (userid, username) }.reduceByKey(_ + "," + _).saveAsTextFile("/user/zhaogj/output/result")
+    sc.stop
   }
 }
