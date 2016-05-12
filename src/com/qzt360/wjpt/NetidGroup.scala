@@ -2,7 +2,7 @@ package com.qzt360.wjpt
 
 import org.apache.spark._
 import org.apache.spark.graphx._
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.Map
 
 object NetidGroup {
   def main(args: Array[String]) {
@@ -10,8 +10,7 @@ object NetidGroup {
     val sc = new SparkContext(conf)
     //im分析
     val im = sc.textFile("/user/wjpt/im")
-    var errIms = new ArrayBuffer[String]()
-    im.filter { x =>
+    val errIm = im.filter { x =>
       {
         var result = false
         val parts = x.split("\t")
@@ -49,17 +48,15 @@ object NetidGroup {
     }.reduceByKey(_ + _).filter {
       case (netid, count) => {
         var output = false
-        if (count > 5) {
+        //过滤qq误审计
+        if (count == 1 || count >= 20) {
           output = true
         }
         output
       }
-    }.foreach {
-      case (netid, count) =>
-        {
-          errIms += netid
-        }
     }
+    //errIm.saveAsTextFile("/user/zhaogj/output/errIm")
+    val errImMap = errIm.collectAsMap
 
     val keyIm = im.filter { x =>
       {
@@ -74,7 +71,7 @@ object NetidGroup {
                 if (someQQ.substring(5, someQQ.length() - 1).equals(parts(10))) {
                   if (parts(4).length() <= 10 && parts(0).length() <= 10) {
                     if (parts(4).startsWith("1")) {
-                      if (!errIms.contains(parts(7) + "\t" + parts(10))) {
+                      if ("None".equals("" + errImMap.get(parts(7) + "\t" + parts(10)))) {
                         result = true
                       }
                     }
@@ -110,12 +107,11 @@ object NetidGroup {
         result
       }
     }
-    //keyIm.saveAsTextFile("/user/zhaogj/output/tmpim")
+    //keyIm.saveAsTextFile("/user/zhaogj/output/imRelation")
 
     //email分析
     val email = sc.textFile("/user/wjpt/email")
-    var errEmails = new ArrayBuffer[String]()
-    email.filter { x =>
+    val errEmail = email.filter { x =>
       {
         var result = false
         val parts = x.split("\t")
@@ -147,17 +143,14 @@ object NetidGroup {
     }.reduceByKey(_ + _).filter {
       case (netid, count) => {
         var output = false
-        if (count > 5) {
+        if (count == 1 || count >= 20) {
           output = true
         }
         output
       }
-    }.foreach {
-      case (netid, count) =>
-        {
-          errEmails += netid
-        }
     }
+    //errEmail.saveAsTextFile("/user/zhaogj/output/errEmail")
+    val errEmailMap = errEmail.collectAsMap
 
     val keyEmail = email.filter { x =>
       {
@@ -169,7 +162,7 @@ object NetidGroup {
           if (actionType == 0 || actionType == 2) {
             if (parts(4).length() <= 10 && parts(0).length() <= 10) {
               if (parts(4).startsWith("1")) {
-                if (!errEmails.contains("9\t" + parts(10))) {
+                if ("None".equals("" + errEmailMap.get("9\t" + parts(9).toLowerCase()))) {
                   result = true
                 }
               }
@@ -196,11 +189,11 @@ object NetidGroup {
       case (key, value) => {
         var result = true
         val parts = value.split(",")
-        var emailFix = new ArrayBuffer[String]()
+        var emailFix = Map[String, Int]()
         for (tmp <- parts) {
           val emails = tmp.split("@")
-          if (!emailFix.contains(emails(1))) {
-            emailFix += emails(1)
+          if ("None".equals("" + emailFix.get(emails(1)))) {
+            emailFix(emails(1)) = 1
           } else {
             result = false
           }
@@ -208,7 +201,8 @@ object NetidGroup {
         result
       }
     }
-    //keyEmail.saveAsTextFile("/user/zhaogj/output/tmpemail")
+    //keyEmail.saveAsTextFile("/user/zhaogj/output/emailRelation")
+
     val netids = (keyIm union keyEmail).reduceByKey(_ + "," + _).map { case (key, value) => value }.filter { x =>
       {
         var output = false
@@ -218,12 +212,12 @@ object NetidGroup {
         output
       }
     }
-    //netids.saveAsTextFile("/user/zhaogj/output/netids5")
+    //netids.saveAsTextFile("/user/zhaogj/output/netIdRelation")
 
     //计算最大连通子图，看看结果是什么鸟样
     //给每个身份一个唯一编号(Long)
     var idNum = 0L
-    val netidNumMap = netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
+    val netidNumMap = netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
       {
         for (e <- x) yield e
       }
@@ -233,7 +227,7 @@ object NetidGroup {
         (x, idNum)
       }
     }.collectAsMap
-    netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
+    netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
       {
         for (e <- x) yield e
       }
@@ -243,7 +237,7 @@ object NetidGroup {
         x + "," + idNum
       }
     }.saveAsTextFile("/user/zhaogj/output/netidNum")
-    netids.coalesce(1).map(x => x.split(",")).flatMap { x =>
+    netids.coalesce(4).map(x => x.split(",")).flatMap { x =>
       {
         for (i <- 1 until x.length - 1) yield (netidNumMap(x(0)) + "\t" + netidNumMap(x(i)))
       }
