@@ -9,8 +9,8 @@ object NetidGroup {
     val conf = new SparkConf().setAppName("NetidGroup")
     val sc = new SparkContext(conf)
     //im分析
-    val im = sc.textFile("/user/wjpt/im")
-    val errIm = im.filter { x =>
+    //滤掉明显不合格的数据
+    val im = sc.textFile("/user/wjpt/im").filter { x =>
       {
         var result = false
         val parts = x.split("\t")
@@ -33,7 +33,33 @@ object NetidGroup {
         }
         result
       }
-    }.map { x =>
+    }
+    //找出只出现一次的数据
+    val imOnce = im.map { x =>
+      {
+        val parts = x.split("\t")
+        val time = parts(4).toInt
+        val day = time - (time + 60 * 60 * 8) % (60 * 60 * 24)
+        //customerId ip mac day netIdType netId
+        parts(0).toInt + "\t" + parts(5) + "\t" + parts(6) + "\t" + day + "\t" + parts(7) + "\t" + parts(10)
+      }
+    }.distinct.map { x =>
+      {
+        val parts = x.split("\t")
+        //netIdType netId, count
+        (parts(4) + "\t" + parts(5), 1)
+      }
+    }.reduceByKey(_ + _).filter {
+      case (netid, count) => {
+        var output = false
+        if (count == 1) {
+          output = true
+        }
+        output
+      }
+    }
+    //四处乱飞的QQ
+    val imMany = im.map { x =>
       {
         val parts = x.split("\t")
         //customerId mac netIdType netId
@@ -48,38 +74,22 @@ object NetidGroup {
     }.reduceByKey(_ + _).filter {
       case (netid, count) => {
         var output = false
-        //过滤qq误审计
-        if (count == 1 || count >= 20) {
+        if (count >= 20) {
           output = true
         }
         output
       }
     }
-    //errIm.saveAsTextFile("/user/zhaogj/output/errIm")
+    val errIm = imOnce union imMany
+    errIm.saveAsTextFile("/user/zhaogj/output/errIm")
     val errImMap = errIm.collectAsMap
 
     val keyIm = im.filter { x =>
       {
         var result = false
         val parts = x.split("\t")
-        if (parts.length == 19 || parts.length == 22) {
-          if (parts(7).equals("1002")) {
-            if (parts(10).length() >= 5 && parts(10).length() <= 11) {
-              val regEx = "[0-9]+".r
-              val someQQ = regEx.findFirstIn(parts(10)).toString
-              if (!someQQ.equals("None")) {
-                if (someQQ.substring(5, someQQ.length() - 1).equals(parts(10))) {
-                  if (parts(4).length() <= 10 && parts(0).length() <= 10) {
-                    if (parts(4).startsWith("1")) {
-                      if ("None".equals("" + errImMap.get(parts(7) + "\t" + parts(10)))) {
-                        result = true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+        if ("None".equals("" + errImMap.get(parts(7) + "\t" + parts(10)))) {
+          result = true
         }
         result
       }
@@ -101,17 +111,17 @@ object NetidGroup {
       case (key, value) => {
         var result = false
         val parts = value.split(",")
-        if (parts.length <= 2) {
+        //同一个人最多也就有三个QQ
+        if (parts.length <= 3) {
           result = true
         }
         result
       }
     }
-    //keyIm.saveAsTextFile("/user/zhaogj/output/imRelation")
+    keyIm.saveAsTextFile("/user/zhaogj/output/imRelation")
 
     //email分析
-    val email = sc.textFile("/user/wjpt/email")
-    val errEmail = email.filter { x =>
+    val email = sc.textFile("/user/wjpt/email").filter { x =>
       {
         var result = false
         val parts = x.split("\t")
@@ -128,9 +138,37 @@ object NetidGroup {
         }
         result
       }
-    }.map { x =>
+    }
+    //找出只出现一次的邮箱，认为是误审计
+    val emailOnce = email.map { x =>
       {
         val parts = x.split("\t")
+        val time = parts(4).toInt
+        val day = time - (time + 60 * 60 * 8) % (60 * 60 * 24)
+        //customerId ip mac day netIdType netId
+        parts(0).toInt + "\t" + parts(5) + "\t" + parts(6) + "\t" + day + "\t9\t" + parts(9).toLowerCase()
+      }
+    }.distinct.map { x =>
+      {
+        val parts = x.split("\t")
+        //netIdType netId, count
+        (parts(4) + "\t" + parts(5), 1)
+      }
+    }.reduceByKey(_ + _).filter {
+      case (netid, count) => {
+        var output = false
+        if (count == 1) {
+          output = true
+        }
+        output
+      }
+    }
+    //四处乱飞的email
+    val emailMany = email.map { x =>
+      {
+        val parts = x.split("\t")
+        val time = parts(4).toInt
+        val day = time - (time + 60 * 60 * 8) % (60 * 60 * 24)
         //customerId mac netIdType netId
         parts(0).toInt + "\t" + parts(6) + "\t9\t" + parts(9).toLowerCase()
       }
@@ -143,31 +181,23 @@ object NetidGroup {
     }.reduceByKey(_ + _).filter {
       case (netid, count) => {
         var output = false
-        if (count == 1 || count >= 20) {
+        if (count >= 20) {
           output = true
         }
         output
       }
     }
-    //errEmail.saveAsTextFile("/user/zhaogj/output/errEmail")
+
+    val errEmail = emailOnce union emailMany
+    errEmail.saveAsTextFile("/user/zhaogj/output/errEmail")
     val errEmailMap = errEmail.collectAsMap
 
     val keyEmail = email.filter { x =>
       {
         var result = false
         val parts = x.split("\t")
-        if (parts.length == 27 || parts.length == 30) {
-          val actionType = parts(7).toInt
-          //0/发,1/收,2/web发
-          if (actionType == 0 || actionType == 2) {
-            if (parts(4).length() <= 10 && parts(0).length() <= 10) {
-              if (parts(4).startsWith("1")) {
-                if ("None".equals("" + errEmailMap.get("9\t" + parts(9).toLowerCase()))) {
-                  result = true
-                }
-              }
-            }
-          }
+        if ("None".equals("" + errEmailMap.get("9\t" + parts(9).toLowerCase()))) {
+          result = true
         }
         result
       }
@@ -201,7 +231,7 @@ object NetidGroup {
         result
       }
     }
-    //keyEmail.saveAsTextFile("/user/zhaogj/output/emailRelation")
+    keyEmail.saveAsTextFile("/user/zhaogj/output/emailRelation")
 
     val netids = (keyIm union keyEmail).reduceByKey(_ + "," + _).map { case (key, value) => value }.filter { x =>
       {
@@ -212,7 +242,7 @@ object NetidGroup {
         output
       }
     }
-    //netids.saveAsTextFile("/user/zhaogj/output/netIdRelation")
+    netids.saveAsTextFile("/user/zhaogj/output/netIdRelation")
 
     //计算最大连通子图，看看结果是什么鸟样
     //给每个身份一个唯一编号(Long)
