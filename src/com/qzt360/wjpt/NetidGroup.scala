@@ -82,7 +82,7 @@ object NetidGroup {
     }
     val errIm = imOnce union imMany
     errIm.saveAsTextFile("/user/zhaogj/output/errIm")
-    
+
     val errImMap = errIm.collectAsMap
 
     val keyIm = im.filter { x =>
@@ -281,7 +281,7 @@ object NetidGroup {
       val fields = line.split(",")
       (fields(1).toLong, fields(0))
     }
-    val ccByUsername = users.join(cc).map {
+    users.join(cc).map {
       case (id, (username, cc)) => (username, cc)
     }.map { case (username, userid) => (userid, username) }.reduceByKey(_ + "," + _).saveAsTextFile("/user/zhaogj/output/result")
     sc.stop
