@@ -16,6 +16,7 @@ object FlatMapTest {
      */
     //文件变成一个RDD
     val fileRDD = sc.textFile("/user/zhaogj/input/testData")
+    
     //朴素的写法
     val wordsRDDOld = fileRDD.map(_.split("\\s+")).flatMap { x =>
       {
@@ -52,6 +53,9 @@ object FlatMapTest {
     val arr = sc.parallelize(Array(("A", 1), ("B", 2), ("C", 3)))
     val tmp = arr.flatMap(x => (x._1 + x._2))
     tmp.collect
+    val tmp1 = arr.flatMap(x => List(x._1+x._2))
+    tmp1.collect
+    
     sc.parallelize(1 to 10, 5).flatMap(1 to _).collect
     sc.parallelize(List(1, 2, 3), 2).flatMap(x => List(x, x, "zz")).collect
     sc.parallelize(1 to 10, 3).flatMap(List.fill(scala.util.Random.nextInt(10))(_)).collect
